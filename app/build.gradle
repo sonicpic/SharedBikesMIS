@@ -23,8 +23,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
     buildFeatures {
         viewBinding true
@@ -54,5 +54,13 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     //动态权限申请
     implementation 'pub.devrel:easypermissions:3.0.0'
+
+    //okhttp和gson
+    implementation 'com.squareup.okhttp3:okhttp:3.8.1'
+    implementation 'com.squareup.okio:okio:2.0.0'
+    implementation 'com.google.code.gson:gson:2.8.2'
+    //Material库
+    implementation 'com.google.android.material:material:1.6.1'
+
 
 }
