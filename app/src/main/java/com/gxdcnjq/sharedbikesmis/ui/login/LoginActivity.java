@@ -14,9 +14,9 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.gxdcnjq.sharedbikesmis.ui.main.MainActivity;
 import com.gxdcnjq.sharedbikesmis.R;
 import com.gxdcnjq.sharedbikesmis.entity.User;
+import com.gxdcnjq.sharedbikesmis.ui.main2.Main2Activity;
 import com.gxdcnjq.sharedbikesmis.ui.register.RegisterActivity;
 
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener {
@@ -88,7 +88,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     public void onClick(View view) {
         int id = view.getId();//登录按钮
         if (id == R.id.btn_login) {
-            Intent intent = new Intent(this, MainActivity.class);
+            Intent intent = new Intent(this, Main2Activity.class);
             intent.putExtra("user_json", "null");
             startActivity(intent);
             finish();
@@ -126,7 +126,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             startActivity(intent2);
             //游客模式
         } else if (id == R.id.btn_nouser) {
-            Intent intent1 = new Intent(this, MainActivity.class);
+            Intent intent1 = new Intent(this, Main2Activity.class);
             intent1.putExtra("user_json", "null");
             startActivity(intent1);
             finish();

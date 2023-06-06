@@ -1,19 +1,25 @@
-package com.gxdcnjq.sharedbikesmis.ui.main.home;
+package com.gxdcnjq.sharedbikesmis.ui.main2;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
-import android.graphics.Color;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import androidx.lifecycle.ViewModelProvider;
 
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
@@ -23,18 +29,22 @@ import com.amap.api.maps.AMap;
 import com.amap.api.maps.LocationSource;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
+import com.amap.api.maps.model.LatLng;
+import com.amap.api.maps.model.Marker;
+import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.MyLocationStyle;
-import com.amap.api.services.poisearch.PoiSearch;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.gxdcnjq.sharedbikesmis.MapApplication;
 import com.gxdcnjq.sharedbikesmis.R;
-import com.gxdcnjq.sharedbikesmis.databinding.FragmentHomeBinding;
+import com.gxdcnjq.sharedbikesmis.databinding.ActivityMain2Binding;
+import com.gxdcnjq.sharedbikesmis.ui.bluetooth.BluetoothActivity;
 
 import pub.devrel.easypermissions.AfterPermissionGranted;
 import pub.devrel.easypermissions.EasyPermissions;
 
-public class HomeFragment extends Fragment implements AMapLocationListener,LocationSource {
+public class Main2Activity extends AppCompatActivity implements AMapLocationListener, LocationSource, AMap.OnMarkerClickListener {
 
-    private FragmentHomeBinding binding;
+    private ActivityMain2Binding binding;
     //请求权限码
     private static final int REQUEST_PERMISSIONS = 9527;
     //声明AMapLocationClient类对象
@@ -42,6 +52,7 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
     //声明AMapLocationClientOption对象
     public AMapLocationClientOption mLocationOption = null;
     private TextView tv_info;
+    private TextView tv_device;
     private MapView mapView;
     //地图控制器
     private AMap aMap = null;
@@ -50,17 +61,40 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
     //定位样式
     private MyLocationStyle myLocationStyle = new MyLocationStyle();
 
+    private FloatingActionButton fabMenu;
+    private FloatingActionButton fabRide;
+    private FloatingActionButton fabRepair;
 
+    private boolean isMenuOpen = false;
 
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             ViewGroup container, Bundle savedInstanceState) {
-        HomeViewModel homeViewModel =
-                new ViewModelProvider(this).get(HomeViewModel.class);
+    private MapApplication app;
 
-        binding = FragmentHomeBinding.inflate(inflater, container, false);
-        View root = binding.getRoot();
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        binding = ActivityMain2Binding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
+//        setContentView(R.layout.activity_main2);
 
+        //设置全屏和全面屏适配
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        getWindow().setAttributes(lp);
+
+        //绑定控件
+        app = (MapApplication) getApplication();
         tv_info = binding.tvContent;
+        fabMenu = binding.fabMenu;
+        fabRide = binding.fabRide;
+        fabRepair = binding.fabRepair;
+        tv_device = binding.tvDevice;
 
         //初始化地图
         initMap(savedInstanceState);
@@ -70,23 +104,64 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
 
         //检查Android版本
         checkingAndroidVersion();
-        return root;
+
+        // 设置浮动按钮的点击事件监听器
+        fabMenu.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isMenuOpen) {
+                    // 如果菜单已展开，则收起菜单
+                    closeMenu();
+                } else {
+                    // 如果菜单未展开，则展开菜单
+                    openMenu();
+                }
+            }
+        });
+
+        // 设置展开按钮的点击事件监听器
+        fabRide.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 处理骑行按钮的点击事件
+                // TODO: 添加您的处理逻辑
+                Toast.makeText(Main2Activity.this, "点击了骑行按钮", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(Main2Activity.this, BluetoothActivity.class);
+                startActivity(intent);
+            }
+        });
+
+        // 设置报修按钮的点击事件监听器
+        fabRepair.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 处理报修按钮的点击事件
+                // TODO: 添加您的处理逻辑
+                Toast.makeText(Main2Activity.this, "点击了报修按钮", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
+
     @Override
-    public void onDestroyView() {
-        super.onDestroyView();
+    public void onDestroy() {
+        super.onDestroy();
         //销毁定位客户端，同时销毁本地定位服务。
         mLocationClient.onDestroy();
         mapView.onDestroy();
         binding = null;
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public void onResume() {
         super.onResume();
         //在Fragment执行onResume时执行mMapView.onResume ()，重新绘制加载地图
         mapView.onResume();
+        if(app.getDevice()!=null){
+            tv_device.setText("共享单车已连接"+"\n"+app.getDevice().getName()+"\n"+app.getDevice().getAddress());
+//            Toast.makeText(app, app.getDevice().getName(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -129,15 +204,15 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
                 Manifest.permission.WRITE_EXTERNAL_STORAGE
         };
 
-        if (EasyPermissions.hasPermissions(getActivity(), permissions)) {
+        if (EasyPermissions.hasPermissions(this, permissions)) {
             //true 有权限 开始定位
-            Toast.makeText(getActivity(), "已获得权限，可以定位啦！", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "已获得权限，可以定位啦！", Toast.LENGTH_SHORT).show();
 
             //启动定位
             mLocationClient.startLocation();
         } else {
             //false 无权限
-            Toast.makeText(getActivity(), "需要权限", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "需要权限", Toast.LENGTH_SHORT).show();
             EasyPermissions.requestPermissions(this, "需要权限", REQUEST_PERMISSIONS, permissions);
         }
     }
@@ -161,7 +236,7 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
     private void initLocation() {
         //初始化定位
         try {
-            mLocationClient = new AMapLocationClient(getActivity().getApplicationContext());
+            mLocationClient = new AMapLocationClient(this.getApplicationContext());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -233,6 +308,17 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
         //初始化地图控制器对象
         aMap = mapView.getMap();
 
+        // 给地图设置标记点点击事件监听器
+        aMap.setOnMarkerClickListener(this);
+
+        // 添加标记点
+        aMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(39.95, 116.34))
+                        .title("小黄车")
+                        .snippet("这是一个小黄车")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)))
+                .setClickable(true);
+
 //        // 自定义定位蓝点图标
 //        myLocationStyle.myLocationIcon(BitmapDescriptorFactory.fromResource(R.drawable.baseline_pedal_bike_24));
 //        // 自定义精度范围的圆形边框颜色  都为0则透明
@@ -277,6 +363,87 @@ public class HomeFragment extends Fragment implements AMapLocationListener,Locat
             mLocationClient.onDestroy();
         }
         mLocationClient = null;
+    }
+
+
+    /**
+     * 处理标记点的点击事件
+     */
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        // 获取标记点的标题和信息
+        String title = marker.getTitle();
+        String snippet = marker.getSnippet();
+
+        // 显示标题和信息
+        Toast.makeText(this, "标题：" + title + "\n信息：" + snippet, Toast.LENGTH_SHORT).show();
+
+        // 返回 true 表示消费了该事件，不再触发其他默认的处理
+        // 返回 false 则继续触发其他默认的处理
+        return false;
+    }
+
+    private void openMenu() {
+        // 展开菜单
+        fabRide.setVisibility(View.VISIBLE);
+        fabRepair.setVisibility(View.VISIBLE);
+        // 创建展开动画
+        ObjectAnimator rideAnimator = ObjectAnimator.ofFloat(fabRide, "translationY", 0f, -200f);
+        ObjectAnimator repairAnimator = ObjectAnimator.ofFloat(fabRepair, "translationY", 0f, -400f);
+
+        // 设置动画持续时间和插值器
+        rideAnimator.setDuration(300);
+        repairAnimator.setDuration(300);
+        rideAnimator.setInterpolator(new DecelerateInterpolator());
+        repairAnimator.setInterpolator(new DecelerateInterpolator());
+
+        // 创建动画集合
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.playTogether(rideAnimator, repairAnimator);
+        animatorSet.start();
+
+        // 旋转 Menu 按钮
+        ObjectAnimator rotationAnimator = ObjectAnimator.ofFloat(fabMenu, "rotation", 0f, 45f);
+        rotationAnimator.setDuration(300);
+        rotationAnimator.start();
+
+        isMenuOpen = true;
+    }
+
+    private void closeMenu() {
+        // 收起菜单
+        // 创建收起动画
+        ObjectAnimator rideAnimator = ObjectAnimator.ofFloat(fabRide, "translationY", -200f, 0f);
+        ObjectAnimator repairAnimator = ObjectAnimator.ofFloat(fabRepair, "translationY", -400f, 0f);
+
+        // 设置动画持续时间和插值器
+        rideAnimator.setDuration(300);
+        repairAnimator.setDuration(300);
+        rideAnimator.setInterpolator(new AccelerateInterpolator());
+        repairAnimator.setInterpolator(new AccelerateInterpolator());
+
+        // 创建动画集合
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.playTogether(rideAnimator, repairAnimator);
+        animatorSet.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                super.onAnimationEnd(animation);
+                // 在动画结束后隐藏按钮
+                fabRide.setVisibility(View.GONE);
+                fabRepair.setVisibility(View.GONE);
+            }
+        });
+        animatorSet.start();
+
+        // 逆时针旋转 Menu 按钮
+        ObjectAnimator rotationAnimator = ObjectAnimator.ofFloat(fabMenu, "rotation", 45f, 0f);
+        rotationAnimator.setDuration(300);
+        rotationAnimator.start();
+
+        fabMenu.bringToFront();
+        fabMenu.invalidate();
+        isMenuOpen = false;
     }
 
 }
