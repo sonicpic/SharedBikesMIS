@@ -1,11 +1,11 @@
 package com.gxdcnjq.sharedbikesmis.entity;
 
-public class User {
+public class UserForLogin {
     Integer id;
     private String username;
     private String password;
 
-    public User(String username, String password) {
+    public UserForLogin(String username, String password) {
         this.username = username;
         this.password = password;
     }

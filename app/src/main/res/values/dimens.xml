@@ -11,4 +11,5 @@
     <dimen name="text_margin">16dp</dimen>
     <dimen name="fab_ride_translation">100dp</dimen>
     <dimen name="fab_repair_translation">200dp</dimen>
+    <dimen name="title_text_size">20dp</dimen>
 </resources>

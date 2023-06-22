@@ -1,0 +1,58 @@
+<!-- list_item.xml -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <ImageView
+        android:id="@+id/repair_item_image"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/baseline_comment_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/repair_time_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="2023-06-22T05:44:27.000+00:00"
+        android:layout_marginLeft="6dp"
+        android:textStyle="bold"
+        android:textColor="#6E6E6E"
+        android:textSize="18sp"
+        app:layout_constraintStart_toEndOf="@+id/repair_item_image"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/repair_state_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="已报修"
+        android:textStyle="bold"
+        android:textColor="#3949AB"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toTopOf="@+id/repair_situation_text"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/repair_situation_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="故障详细情况"
+        android:layout_marginLeft="6dp"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/repair_item_image"
+        app:layout_constraintTop_toBottomOf="@+id/repair_time_text" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -2,19 +2,18 @@ package com.gxdcnjq.sharedbikesmis;
 
 import android.app.Application;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.maps.MapsInitializer;
 import com.amap.api.services.core.ServiceSettings;
+import com.gxdcnjq.sharedbikesmis.entity.BikeDevice;
 
 public class MapApplication extends Application {
 
     private BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-    private BluetoothSocket mSocket = null;
-    private BluetoothDevice device = null;
+    private BikeDevice currentBikeDevice = null;
 
     @Override
     public void onCreate() {
@@ -39,21 +38,13 @@ public class MapApplication extends Application {
         this.mBluetoothAdapter = mBluetoothAdapter;
     }
 
-    public BluetoothSocket getmSocket() {
-        return mSocket;
+    public BikeDevice getCurrentBikeDevice() {
+        return currentBikeDevice;
     }
 
-    public void setmSocket(BluetoothSocket mSocket) {
-        this.mSocket = mSocket;
+    public void setCurrentBikeDevice(BikeDevice currentBikeDevice) {
+        this.currentBikeDevice = currentBikeDevice;
     }
 
-
-    public BluetoothDevice getDevice() {
-        return device;
-    }
-
-    public void setDevice(BluetoothDevice device) {
-        this.device = device;
-    }
 }
 

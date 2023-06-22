@@ -1,23 +1,30 @@
 package com.gxdcnjq.sharedbikesmis.ui.main2;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
+import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,16 +35,33 @@ import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.LocationSource;
 import com.amap.api.maps.MapView;
+import com.amap.api.maps.model.BitmapDescriptor;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
 import com.amap.api.maps.model.Marker;
 import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.MyLocationStyle;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.gson.Gson;
 import com.gxdcnjq.sharedbikesmis.MapApplication;
 import com.gxdcnjq.sharedbikesmis.R;
+import com.gxdcnjq.sharedbikesmis.constant.ApiConstants;
+import com.gxdcnjq.sharedbikesmis.constant.MacConstants;
 import com.gxdcnjq.sharedbikesmis.databinding.ActivityMain2Binding;
+import com.gxdcnjq.sharedbikesmis.entity.Bike;
+import com.gxdcnjq.sharedbikesmis.entity.BikesData;
+import com.gxdcnjq.sharedbikesmis.entity.Response;
 import com.gxdcnjq.sharedbikesmis.ui.bluetooth.BluetoothActivity;
+import com.gxdcnjq.sharedbikesmis.ui.mine.PersonalCenterActivity;
+import com.gxdcnjq.sharedbikesmis.ui.repair.RepairActivity;
+import com.gxdcnjq.sharedbikesmis.utils.OKHttpUtil;
+
+import org.json.JSONArray;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import pub.devrel.easypermissions.AfterPermissionGranted;
 import pub.devrel.easypermissions.EasyPermissions;
@@ -51,8 +75,11 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
     public AMapLocationClient mLocationClient = null;
     //声明AMapLocationClientOption对象
     public AMapLocationClientOption mLocationOption = null;
-    private TextView tv_info;
-    private TextView tv_device;
+    private TextView tv_latitude;
+    private TextView tv_longitude;
+    private TextView tv_location;
+    private TextView tv_device_name;
+    private TextView tv_device_mac;
     private MapView mapView;
     //地图控制器
     private AMap aMap = null;
@@ -64,10 +91,28 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
     private FloatingActionButton fabMenu;
     private FloatingActionButton fabRide;
     private FloatingActionButton fabRepair;
+    private FloatingActionButton fabMine;
+
+    private MaterialButton btnRide;
 
     private boolean isMenuOpen = false;
 
+    private double currentLatitude;
+    private double currentLongitude;
+    boolean unlock = false;
+
     private MapApplication app;
+
+    // 创建一个 Handler 对象
+    Handler handler = new Handler();
+    // 定义一个 Runnable 对象
+    Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+            uploadLocation(app.getCurrentBikeDevice().getDevice().getAddress(), currentLatitude, currentLongitude);
+            handler.postDelayed(this, 2000); // 2000 毫秒表示2秒
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,11 +135,16 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
 
         //绑定控件
         app = (MapApplication) getApplication();
-        tv_info = binding.tvContent;
+        tv_latitude = binding.tvLatitude;
+        tv_longitude = binding.tvLongitude;
+        tv_location = binding.tvLocation;
         fabMenu = binding.fabMenu;
         fabRide = binding.fabRide;
         fabRepair = binding.fabRepair;
-        tv_device = binding.tvDevice;
+        fabMine = binding.fabMine;
+        tv_device_name = binding.tvDeviceName;
+        tv_device_mac = binding.tvDeviceMac;
+        btnRide = binding.ride;
 
         //初始化地图
         initMap(savedInstanceState);
@@ -109,25 +159,29 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         fabMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (isMenuOpen) {
-                    // 如果菜单已展开，则收起菜单
-                    closeMenu();
-                } else {
-                    // 如果菜单未展开，则展开菜单
-                    openMenu();
+                if(app.getCurrentBikeDevice()!=null && unlock){
+                    Toast.makeText(Main2Activity.this, "骑行中，请稍后操作", Toast.LENGTH_SHORT).show();
+                }else{
+                    if (isMenuOpen) {
+                        // 如果菜单已展开，则收起菜单
+                        closeMenu();
+                    } else {
+                        // 如果菜单未展开，则展开菜单
+                        openMenu();
+                    }
                 }
             }
         });
 
-        // 设置展开按钮的点击事件监听器
+        // 设置扫描设备按钮的点击事件监听器
         fabRide.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 // 处理骑行按钮的点击事件
                 // TODO: 添加您的处理逻辑
-                Toast.makeText(Main2Activity.this, "点击了骑行按钮", Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(Main2Activity.this, BluetoothActivity.class);
                 startActivity(intent);
+                closeMenu();
             }
         });
 
@@ -137,7 +191,36 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
             public void onClick(View v) {
                 // 处理报修按钮的点击事件
                 // TODO: 添加您的处理逻辑
-                Toast.makeText(Main2Activity.this, "点击了报修按钮", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(Main2Activity.this, RepairActivity.class);
+                startActivity(intent);
+                closeMenu();
+            }
+        });
+
+        // 设置我的按钮
+        fabMine.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // TODO: 添加您的处理逻辑
+                Intent intent = new Intent(Main2Activity.this, PersonalCenterActivity.class);
+                startActivity(intent);
+            }
+        });
+
+        // 设置骑行/结束骑行按钮的点击事件监听器
+        btnRide.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if(app.getCurrentBikeDevice() == null){
+                    Toast.makeText(Main2Activity.this, "共享单车未连接", Toast.LENGTH_SHORT).show();
+                }else{
+                    if (unlock) {
+                        lock(app.getCurrentBikeDevice().getDevice().getAddress(), currentLatitude, currentLongitude);
+                    } else {
+                        unlock(app.getCurrentBikeDevice().getDevice().getAddress(), currentLatitude, currentLongitude);
+                    }
+                }
+
             }
         });
     }
@@ -156,12 +239,12 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
     @Override
     public void onResume() {
         super.onResume();
+        //初始化定位
+        initLocation();
+        refreshBike();
+        refreshCurrentBike();
         //在Fragment执行onResume时执行mMapView.onResume ()，重新绘制加载地图
         mapView.onResume();
-        if(app.getDevice()!=null){
-            tv_device.setText("共享单车已连接"+"\n"+app.getDevice().getName()+"\n"+app.getDevice().getAddress());
-//            Toast.makeText(app, app.getDevice().getName(), Toast.LENGTH_SHORT).show();
-        }
     }
 
     @Override
@@ -182,11 +265,11 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
      * 检查Android版本
      */
     private void checkingAndroidVersion() {
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             //Android6.0及以上先获取权限再定位
             requestPermission();
 
-        }else {
+        } else {
             //Android6.0以下直接定位
             mLocationClient.startLocation();
         }
@@ -219,6 +302,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
 
     /**
      * 请求权限结果
+     *
      * @param requestCode
      * @param permissions
      * @param grantResults
@@ -273,18 +357,23 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
             if (aMapLocation.getErrorCode() == 0) {
                 //地址
                 String address = aMapLocation.getAddress();
+                currentLatitude = aMapLocation.getLatitude();
+                currentLongitude = aMapLocation.getLongitude();
                 StringBuffer stringBuffer = new StringBuffer();
                 stringBuffer.append("纬度：" + aMapLocation.getLatitude() + "\n");
-                stringBuffer.append("经度：" + aMapLocation.getLongitude()+ "\n");
+                stringBuffer.append("经度：" + aMapLocation.getLongitude() + "\n");
                 stringBuffer.append("地址：" + address + "\n");
 
-                tv_info.setText(stringBuffer.toString());
+//                tv_latitude.setText("纬度 "+aMapLocation.getLatitude());
+//                tv_longitude.setText("经度 "+aMapLocation.getLongitude());
+                tv_location.setText(address);
+
 
                 //停止定位，但本地定位服务并不会被销毁
                 mLocationClient.stopLocation();
 
                 //显示地图定位结果
-                if(mListener != null){
+                if (mListener != null) {
                     //显示系统图标
                     mListener.onLocationChanged(aMapLocation);
                 }
@@ -299,6 +388,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
 
     /**
      * 初始化地图
+     *
      * @param savedInstanceState
      */
     private void initMap(Bundle savedInstanceState) {
@@ -311,24 +401,31 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         // 给地图设置标记点点击事件监听器
         aMap.setOnMarkerClickListener(this);
 
-        // 添加标记点
-        aMap.addMarker(new MarkerOptions()
-                        .position(new LatLng(39.95, 116.34))
-                        .title("小黄车")
-                        .snippet("这是一个小黄车")
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)))
-                .setClickable(true);
+//        // 添加标记点
+//        aMap.addMarker(new MarkerOptions()
+//                        .position(new LatLng(39.33, 115.91))
+//                        .title("小黄车")
+//                        .snippet("这是一个小黄车")
+//                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)))
+//                .setClickable(true);
 
-//        // 自定义定位蓝点图标
-//        myLocationStyle.myLocationIcon(BitmapDescriptorFactory.fromResource(R.drawable.baseline_pedal_bike_24));
-//        // 自定义精度范围的圆形边框颜色  都为0则透明
-//        myLocationStyle.strokeColor(Color.argb(0, 0, 0, 0));
-//        // 自定义精度范围的圆形边框宽度  0 无宽度
-//        myLocationStyle.strokeWidth(0);
-//        // 设置圆形的填充颜色  都为0则透明
-//        myLocationStyle.radiusFillColor(Color.argb(0, 0, 0, 0));
-//        //设置定位蓝点的Style
-//        aMap.setMyLocationStyle(myLocationStyle);
+        MyLocationStyle myLocationStyle = new MyLocationStyle();
+        // 自定义定位蓝点图标
+        Bitmap originalBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.icon5);
+        int newWidth = 75; // 调整后的图标宽度
+        int newHeight = 75; // 调整后的图标高度
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, false);
+        BitmapDescriptor customIcon = BitmapDescriptorFactory.fromBitmap(scaledBitmap);
+        myLocationStyle.myLocationIcon(customIcon);
+        // 自定义精度范围的圆形边框颜色  都为0则透明
+        myLocationStyle.strokeColor(Color.argb(100, 33, 150, 243));
+        // 自定义精度范围的圆形边框宽度  0 无宽度
+        myLocationStyle.strokeWidth(5);
+        // 设置圆形的填充颜色  都为0则透明
+        myLocationStyle.radiusFillColor(Color.argb(100, 33, 150, 243));
+        // 设置定位蓝点的Style
+        aMap.setMyLocationStyle(myLocationStyle);
+
 
         //设置最小缩放等级为16 ，缩放级别范围为[3, 20]
         aMap.setMinZoomLevel(15);
@@ -387,19 +484,39 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         // 展开菜单
         fabRide.setVisibility(View.VISIBLE);
         fabRepair.setVisibility(View.VISIBLE);
+//        fabMine.setVisibility(View.VISIBLE);
         // 创建展开动画
-        ObjectAnimator rideAnimator = ObjectAnimator.ofFloat(fabRide, "translationY", 0f, -200f);
-        ObjectAnimator repairAnimator = ObjectAnimator.ofFloat(fabRepair, "translationY", 0f, -400f);
+        ObjectAnimator rideAnimatorY = ObjectAnimator.ofFloat(fabRide, "translationY", 0f, -100f);
+        ObjectAnimator rideAnimatorX = ObjectAnimator.ofFloat(fabRide, "translationX", 0f, -100f);
+        ObjectAnimator repairAnimatorY = ObjectAnimator.ofFloat(fabRepair, "translationY", 0f, -100f);
+        ObjectAnimator repairAnimatorX = ObjectAnimator.ofFloat(fabRepair, "translationX", 0f, 100f);
+        ObjectAnimator menuAnimatorY = ObjectAnimator.ofFloat(fabMenu, "translationY", 0f, 100f);
+        ObjectAnimator menuAnimatorX = ObjectAnimator.ofFloat(fabMenu, "translationX", 0f, 0f);
+//        ObjectAnimator mineAnimatorY = ObjectAnimator.ofFloat(fabMine, "translationY", 0f, -300f);
+//        ObjectAnimator mineAnimatorX = ObjectAnimator.ofFloat(fabMine, "translationX", 0f, 0f);
+
 
         // 设置动画持续时间和插值器
-        rideAnimator.setDuration(300);
-        repairAnimator.setDuration(300);
-        rideAnimator.setInterpolator(new DecelerateInterpolator());
-        repairAnimator.setInterpolator(new DecelerateInterpolator());
+        rideAnimatorY.setDuration(300);
+        rideAnimatorX.setDuration(300);
+        repairAnimatorY.setDuration(300);
+        repairAnimatorX.setDuration(300);
+//        mineAnimatorY.setDuration(300);
+//        mineAnimatorX.setDuration(300);
+        menuAnimatorY.setDuration(300);
+        menuAnimatorX.setDuration(300);
+        rideAnimatorY.setInterpolator(new DecelerateInterpolator());
+        rideAnimatorX.setInterpolator(new DecelerateInterpolator());
+        repairAnimatorY.setInterpolator(new DecelerateInterpolator());
+        repairAnimatorX.setInterpolator(new DecelerateInterpolator());
+//        mineAnimatorY.setInterpolator(new DecelerateInterpolator());
+//        mineAnimatorX.setInterpolator(new DecelerateInterpolator());
+        menuAnimatorY.setInterpolator(new DecelerateInterpolator());
+        menuAnimatorX.setInterpolator(new DecelerateInterpolator());
 
         // 创建动画集合
         AnimatorSet animatorSet = new AnimatorSet();
-        animatorSet.playTogether(rideAnimator, repairAnimator);
+        animatorSet.playTogether(rideAnimatorY, rideAnimatorX, repairAnimatorY, repairAnimatorX,menuAnimatorY,menuAnimatorX);
         animatorSet.start();
 
         // 旋转 Menu 按钮
@@ -413,18 +530,36 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
     private void closeMenu() {
         // 收起菜单
         // 创建收起动画
-        ObjectAnimator rideAnimator = ObjectAnimator.ofFloat(fabRide, "translationY", -200f, 0f);
-        ObjectAnimator repairAnimator = ObjectAnimator.ofFloat(fabRepair, "translationY", -400f, 0f);
+        ObjectAnimator rideAnimatorY = ObjectAnimator.ofFloat(fabRide, "translationY", -100f, 0f);
+        ObjectAnimator rideAnimatorX = ObjectAnimator.ofFloat(fabRide, "translationX", -100f, 0f);
+        ObjectAnimator repairAnimatorY = ObjectAnimator.ofFloat(fabRepair, "translationY", -100f, 0f);
+        ObjectAnimator repairAnimatorX = ObjectAnimator.ofFloat(fabRepair, "translationX", 100f, 0f);
+        ObjectAnimator menuAnimatorY = ObjectAnimator.ofFloat(fabMenu, "translationY", 100f, 0f);
+        ObjectAnimator menuAnimatorX = ObjectAnimator.ofFloat(fabMenu, "translationX", 0f, 0f);
+//        ObjectAnimator mineAnimatorY = ObjectAnimator.ofFloat(fabMine, "translationY", -300f, 0f);
+//        ObjectAnimator mineAnimatorX = ObjectAnimator.ofFloat(fabMine, "translationX", 0f, 0f);
 
         // 设置动画持续时间和插值器
-        rideAnimator.setDuration(300);
-        repairAnimator.setDuration(300);
-        rideAnimator.setInterpolator(new AccelerateInterpolator());
-        repairAnimator.setInterpolator(new AccelerateInterpolator());
+        rideAnimatorY.setDuration(300);
+        rideAnimatorX.setDuration(300);
+        repairAnimatorY.setDuration(300);
+        repairAnimatorX.setDuration(300);
+//        mineAnimatorY.setDuration(300);
+//        mineAnimatorX.setDuration(300);
+        menuAnimatorY.setDuration(300);
+        menuAnimatorX.setDuration(300);
+        rideAnimatorY.setInterpolator(new DecelerateInterpolator());
+        rideAnimatorX.setInterpolator(new DecelerateInterpolator());
+        repairAnimatorY.setInterpolator(new DecelerateInterpolator());
+        repairAnimatorX.setInterpolator(new DecelerateInterpolator());
+//        mineAnimatorY.setInterpolator(new DecelerateInterpolator());
+//        mineAnimatorX.setInterpolator(new DecelerateInterpolator());
+        menuAnimatorY.setInterpolator(new DecelerateInterpolator());
+        menuAnimatorX.setInterpolator(new DecelerateInterpolator());
 
         // 创建动画集合
         AnimatorSet animatorSet = new AnimatorSet();
-        animatorSet.playTogether(rideAnimator, repairAnimator);
+        animatorSet.playTogether(rideAnimatorY, rideAnimatorX, repairAnimatorY, repairAnimatorX,menuAnimatorY,menuAnimatorX);
         animatorSet.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
@@ -432,6 +567,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
                 // 在动画结束后隐藏按钮
                 fabRide.setVisibility(View.GONE);
                 fabRepair.setVisibility(View.GONE);
+//                fabMine.setVisibility(View.GONE);
             }
         });
         animatorSet.start();
@@ -446,4 +582,336 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         isMenuOpen = false;
     }
 
+    /**
+     * 刷新当前可用单车
+     */
+    public void refreshBike() {
+        aMap.clear();
+        String res = OKHttpUtil.getSyncRequest(ApiConstants.BASE_URL_HTTP, "bikes", "findAll");
+        if (res != null) {
+            // 使用 Gson 解析 JSON
+            Gson gson = new Gson();
+
+            BikesData bikesData = gson.fromJson(res, BikesData.class);
+            if (bikesData.getCode().equals("200")) {
+                // 访问解析后的数据
+                String code = bikesData.getCode();
+                String msg = bikesData.getMsg();
+                List<Bike> bikes = bikesData.getData();
+                try {
+                    //添加标记点
+                    for (Bike bike : bikes) {
+                        String macAddress = bike.getBikeMac();
+                        String alias = "BJTU共享单车";
+                        if(MacConstants.getNameByMacAddress(macAddress)!=null){
+                            alias = MacConstants.getNameByMacAddress(macAddress);
+                        }
+                        String location = bike.getLocation();
+                        // 去除方括号并按逗号分隔字符串
+                        String[] parts = location.replaceAll("[\\[\\]]", "").split(",");
+                        // 解析经度和纬度
+                        double latitude = Double.parseDouble(parts[0].trim());
+                        double longitude = Double.parseDouble(parts[1].trim());
+                        Log.d("Pan",String.valueOf(latitude));
+                        Log.d("Pan",String.valueOf(longitude));
+                        // 添加标记点
+                        // 创建自定义图标
+                        Bitmap originalBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.bike_icon);
+                        int newWidth = 90; // 调整后的图标宽度
+                        int newHeight = 90; // 调整后的图标高度
+                        Bitmap scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, false);
+                        BitmapDescriptor customIcon = BitmapDescriptorFactory.fromBitmap(scaledBitmap);
+                        aMap.addMarker(new MarkerOptions()
+                                        .position(new LatLng(latitude, longitude))
+                                        .title(alias)
+                                        .snippet(macAddress)
+                                        .icon(customIcon))
+                                .setClickable(true);
+
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Toast.makeText(this, "数据解析错误", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, bikesData.getMsg(), Toast.LENGTH_SHORT).show();
+            }
+        }else {
+            Toast.makeText(this, "服务器连接超时", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 刷新当前连接的共享单车
+     */
+    public void refreshCurrentBike() {
+        if (app.getCurrentBikeDevice() != null) {
+            String alias = app.getCurrentBikeDevice().getAliasName();
+            tv_device_name.setText(alias);
+            tv_device_mac.setText(app.getCurrentBikeDevice().getDevice().getAddress());
+
+//            //获取这辆车的骑行状态
+//            String res = OKHttpUtil.getSyncRequest(ApiConstants.BASE_URL_HTTP, "bikes", alias);
+//            if (res != null) {
+//                // 使用 Gson 解析 JSON
+//                Gson gson = new Gson();
+//                try {
+//                    BikesData bikesData = gson.fromJson(res, BikesData.class);
+//                    if (bikesData.getCode().equals("200")) {
+//                        // 访问解析后的数据
+//                        String code = bikesData.getCode();
+//                        String msg = bikesData.getMsg();
+//                        List<Bike> bikes = bikesData.getData();
+//
+//                        int status = bikes.get(0).getStatus();
+//                        Log.d("Pan", String.valueOf(status));
+//                    } else {
+//                        Toast.makeText(this, bikesData.getMsg(), Toast.LENGTH_SHORT).show();
+//                    }
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                    Toast.makeText(this, "数据解析错误", Toast.LENGTH_SHORT).show();
+//                }
+//            } else {
+//                Toast.makeText(this, "服务器连接超时", Toast.LENGTH_SHORT).show();
+//            }
+        }else{
+            tv_device_name.setText("请使用蓝牙扫描附近的单车");
+            tv_device_mac.setText("");
+        }
+    }
+
+    /**
+     * 开锁
+     */
+    public void unlock(String bikeMac, double latitude, double longitude) {
+        String locationStr = "[" + latitude + "," + longitude + "]";
+        Map<String, String> queryParams = new HashMap<>();
+        Map<String, String> formDataParams = new HashMap<>();
+        formDataParams.put("bikeMac", bikeMac);
+        formDataParams.put("position", locationStr);
+        Log.d("Pan",locationStr);
+        String res = OKHttpUtil.postSyncRequestFormData(ApiConstants.BASE_URL_HTTP, queryParams, formDataParams, "bikes", "unlock");
+        if (res != null) {
+            Log.d("Pan", res);
+            // 使用 Gson 解析 JSON
+            Gson gson = new Gson();
+            try {
+                Response response = gson.fromJson(res, Response.class);
+                if (response.getCode().equals("200")) {
+                    Toast.makeText(this, "开锁成功", Toast.LENGTH_SHORT).show();
+                    //TODO:禁止其他按钮操作
+                    //开始定时上报位置
+                    handler.postDelayed(runnable, 2000);
+
+                    unlock = true;
+
+                    //更改UI
+                    animateUnlock();
+                } else {
+                    Toast.makeText(this, response.getMsg(), Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                Toast.makeText(this, "数据解析错误", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "服务器连接超时", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 上报当前位置
+     */
+    public void uploadLocation(String bikeMac, double latitude, double longitude) {
+        String locationStr = "[" + latitude + "," + longitude + "]";
+        Map<String, String> queryParams = new HashMap<>();
+        Map<String, String> formDataParams = new HashMap<>();
+        formDataParams.put("bikeMac", bikeMac);
+        formDataParams.put("position", locationStr);
+        String res = OKHttpUtil.postSyncRequestFormData(ApiConstants.BASE_URL_HTTP, queryParams, formDataParams, "tracks", "update");
+        if (res != null) {
+            Log.d("Pan", res);
+            // 使用 Gson 解析 JSON
+            Gson gson = new Gson();
+            try {
+                Response response = gson.fromJson(res, Response.class);
+                if (response.getCode().equals("200")) {
+//                    Toast.makeText(this, "上传成功", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, response.getMsg(), Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                Toast.makeText(this, "数据解析错误", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "服务器连接超时", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 关锁
+     */
+    public void lock(String bikeMac, double latitude, double longitude) {
+        String locationStr = "[" + latitude + "," + longitude + "]";
+        Map<String, String> queryParams = new HashMap<>();
+        Map<String, String> formDataParams = new HashMap<>();
+        formDataParams.put("bikeMac", bikeMac);
+        formDataParams.put("position", locationStr);
+        formDataParams.put("isNoParkingPlace", "false");
+        Log.d("Pan",locationStr);
+        String res = OKHttpUtil.postSyncRequestFormData(ApiConstants.BASE_URL_HTTP, queryParams, formDataParams, "bikes", "lock");
+        if (res != null) {
+            Log.d("Pan", res);
+            // 使用 Gson 解析 JSON
+            Gson gson = new Gson();
+            try {
+                Response response = gson.fromJson(res, Response.class);
+                if (response.getCode().equals("200")) {
+                    Toast.makeText(this, "关锁成功", Toast.LENGTH_SHORT).show();
+                    //TODO:允许其他按钮操作
+                    unlock = false;
+                    //停止定时上报位置
+                    handler.removeCallbacks(runnable);
+                    //设置动画
+                    animateLock();
+                    //清除连接状态
+                    app.setCurrentBikeDevice(null);
+                    refreshCurrentBike();
+                    //刷新可用车辆
+                    refreshBike();
+                } else {
+                    Toast.makeText(this, response.getMsg(), Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                Toast.makeText(this, "数据解析错误", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "服务器连接超时", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void animateButton() {
+        int startColor = btnRide.getBackgroundTintList().getDefaultColor();
+        int endColor = Color.RED;
+
+        int startTextColor = btnRide.getTextColors().getDefaultColor();
+        int endTextColor = Color.WHITE;
+
+        int startStrokeColor = Color.TRANSPARENT;
+        int endStrokeColor = Color.GREEN;
+
+        ValueAnimator colorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), startColor, endColor);
+        colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                btnRide.setBackgroundTintList(ColorStateList.valueOf(animatedValue));
+            }
+        });
+
+        ValueAnimator textColorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), startTextColor, endTextColor);
+        textColorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                btnRide.setTextColor(animatedValue);
+            }
+        });
+
+        GradientDrawable drawable = (GradientDrawable) btnRide.getBackground();
+        ValueAnimator strokeColorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), startStrokeColor, endStrokeColor);
+        strokeColorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                drawable.setStroke(2, animatedValue);
+            }
+        });
+
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.playTogether(colorAnimator, textColorAnimator, strokeColorAnimator);
+        animatorSet.setDuration(500);
+        animatorSet.start();
+    }
+
+    private void animateUnlock(){
+        //设置顶部卡片
+        btnRide.setText("关锁");
+        //设置顶部文字颜色变化动画
+        final int startColor3 = getResources().getColor(R.color.white);
+        final int endColor3 = getResources().getColor(R.color.colorAccent);
+        ObjectAnimator tvInfoColorAnimation = ObjectAnimator.ofArgb(btnRide, "textColor", startColor3, endColor3);
+        tvInfoColorAnimation.setDuration(1000); // 设置动画时长，单位为毫秒
+        tvInfoColorAnimation.start(); // 启动动画
+
+        //按钮背景颜色
+        final int startColor = getResources().getColor(R.color.colorPrimary);
+        final int endColor = getResources().getColor(R.color.white);
+        ValueAnimator colorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), startColor, endColor);
+        colorAnimator.setDuration(1000);
+        colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                btnRide.setBackgroundTintList(ColorStateList.valueOf(animatedValue));
+            }
+        });
+        colorAnimator.start();
+
+        //按钮边框颜色
+        final int startColor2 = getResources().getColor(R.color.colorPrimary);
+        final int endColor2 = getResources().getColor(R.color.colorAccent);
+        ValueAnimator colorAnimator2 = ValueAnimator.ofObject(new ArgbEvaluator(), startColor2, endColor2);
+        colorAnimator2.setDuration(1000);
+        colorAnimator2.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                btnRide.setStrokeColor(ColorStateList.valueOf(animatedValue));
+            }
+        });
+        colorAnimator2.start();
+    }
+
+    private void animateLock(){
+        //设置顶部卡片
+        btnRide.setText("开锁");
+        //设置顶部文字颜色变化动画
+        final int startColor3 = getResources().getColor(R.color.colorAccent);
+        final int endColor3 = getResources().getColor(R.color.white);
+        ObjectAnimator tvInfoColorAnimation = ObjectAnimator.ofArgb(btnRide, "textColor", startColor3, endColor3);
+        tvInfoColorAnimation.setDuration(1000); // 设置动画时长，单位为毫秒
+        tvInfoColorAnimation.start(); // 启动动画
+
+        //按钮背景颜色
+        final int startColor = getResources().getColor(R.color.white);
+        final int endColor = getResources().getColor(R.color.colorPrimary);
+        ValueAnimator colorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), startColor, endColor);
+        colorAnimator.setDuration(1000);
+        colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                btnRide.setBackgroundTintList(ColorStateList.valueOf(animatedValue));
+            }
+        });
+        colorAnimator.start();
+
+        //按钮边框颜色
+        final int startColor2 = getResources().getColor(R.color.colorAccent);
+        final int endColor2 = getResources().getColor(R.color.colorPrimary);
+        ValueAnimator colorAnimator2 = ValueAnimator.ofObject(new ArgbEvaluator(), startColor2, endColor2);
+        colorAnimator2.setDuration(1000);
+        colorAnimator2.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animator) {
+                int animatedValue = (int) animator.getAnimatedValue();
+                btnRide.setStrokeColor(ColorStateList.valueOf(animatedValue));
+            }
+        });
+        colorAnimator2.start();
+    }
 }

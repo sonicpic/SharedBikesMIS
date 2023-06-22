@@ -1,0 +1,8 @@
+<shape xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    tools:ignore="ExtraText">
+    <corners android:radius="12dp" /> <!-- 设置圆角半径 -->
+    <stroke
+        android:width="5dp"
+        android:color="@color/light_grey" /> <!-- 设置边框颜色 -->
+</shape>

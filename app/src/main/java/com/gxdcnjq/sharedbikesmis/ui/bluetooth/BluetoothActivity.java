@@ -6,15 +6,13 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,7 +20,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -36,6 +34,8 @@ import androidx.core.content.ContextCompat;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.gxdcnjq.sharedbikesmis.MapApplication;
 import com.gxdcnjq.sharedbikesmis.R;
+import com.gxdcnjq.sharedbikesmis.constant.MacConstants;
+import com.gxdcnjq.sharedbikesmis.entity.BikeDevice;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +53,7 @@ public class BluetoothActivity extends AppCompatActivity {
     private FloatingActionButton mScanButton;
 
 
-//    private ArrayAdapter<String> mArrayAdapter;
+    //    private ArrayAdapter<String> mArrayAdapter;
     private DeviceListAdapter adapter;
     private List<BluetoothDevice> mDevices = new ArrayList<>();
     private List<BluetoothDevice> pairedDevices;
@@ -117,36 +117,12 @@ public class BluetoothActivity extends AppCompatActivity {
         mScanButton = findViewById(R.id.button_scan);
 
 
-
         // 设置ScanButton的点击事件，用于扫描周围的蓝牙设备
         mScanButton.setOnClickListener(new View.OnClickListener() {
             @SuppressLint("MissingPermission")
             @Override
             public void onClick(View v) {
-//                mArrayAdapter.clear();
-                adapter.clear();
-                mDevices.clear();
-
-                pairedDevices = new ArrayList<>(mBluetoothAdapter.getBondedDevices());
-                for (BluetoothDevice device : pairedDevices) {
-                    mDevices.add(device);
-//                    mArrayAdapter.add("[已配对]" + device.getName() + "\n" + device.getAddress());
-                    adapter.add("[已配对]" + device.getName() + "\n" + device.getAddress());
-                }
-
-                try {
-                    // 注册广播接收器
-                    IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-                    filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-                    registerReceiver(mReceiver, filter);
-                } catch (Exception e) {
-                    Log.e("Pan", e.toString());
-                }
-
-                // 开始扫描蓝牙设备
-                boolean success = mBluetoothAdapter.startDiscovery();
-                Toast.makeText(BluetoothActivity.this, "正在扫描蓝牙设备", Toast.LENGTH_SHORT).show();
-//                Toast.makeText(BluetoothActivity.this, String.valueOf(success), Toast.LENGTH_SHORT).show();
+                initAndScan();
             }
         });
 
@@ -158,41 +134,61 @@ public class BluetoothActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 BluetoothDevice device = mDevices.get(position);
 
-                // 尝试进行配对
-                if (device.getBondState() == BluetoothDevice.BOND_NONE) {
-                    try {
-                        device.createBond();
-                    } catch (Exception e) {
-                        Log.e(TAG, "配对失败", e);
-                        Toast.makeText(BluetoothActivity.this, "配对失败", Toast.LENGTH_SHORT).show();
-                    }
+                String alias = MacConstants.getNameByMacAddress(device.getAddress());
+                //判断别名
+                if (alias == null) {
+                    alias = device.getName();
                 }
-                // 尝试进行连接
+
+                app.setCurrentBikeDevice(new BikeDevice(device, alias));      //连接成功后，将bike传到全局Application中
+                // 读取成功后，关闭蓝牙设备的扫描和连接
                 try {
-                    Log.d("Pan","尝试连接");
-//                    bleManager.connect(device);
-
-                    mSocket = device.createRfcommSocketToServiceRecord(mUUID);
-                    mSocket.connect();
-                    Toast.makeText(BluetoothActivity.this, "连接成功", Toast.LENGTH_SHORT).show();
-                    app.setmSocket(mSocket);    //连接成功后，将mSocket传到全局Application中
-                    app.setDevice(device);      //连接成功后，将device传到全局Application中
-
-                    // 连接成功后，关闭蓝牙设备的扫描和连接
-                    try {
-                        mBluetoothAdapter.cancelDiscovery();
-                        unregisterReceiver(mReceiver);
-                    } catch (Exception e) {
-                        Log.e("Pan", e.toString());
-                    }
+                    mBluetoothAdapter.cancelDiscovery();
+                    unregisterReceiver(mReceiver);
                 } catch (Exception e) {
-                    Log.e(TAG, "连接失败", e);
-                    Toast.makeText(BluetoothActivity.this, "连接失败", Toast.LENGTH_SHORT).show();
-                    app.setmSocket(null);
-                    app.setDevice(null);
+                    Log.e("Pan", e.toString());
                 }
+                Toast.makeText(BluetoothActivity.this, "共享单车连接成功", Toast.LENGTH_SHORT).show();
+                finish();
+
+                /*注释部分不再进行蓝牙连接，仅读取Mac地址*/
+//                // 尝试进行配对
+//                if (device.getBondState() == BluetoothDevice.BOND_NONE) {
+//                    try {
+//                        device.createBond();
+//                    } catch (Exception e) {
+//                        Log.e(TAG, "配对失败", e);
+//                        Toast.makeText(BluetoothActivity.this, "配对失败", Toast.LENGTH_SHORT).show();
+//                    }
+//                }
+//                // 尝试进行连接
+//                try {
+//                    Log.d("Pan","尝试连接");
+////                    bleManager.connect(device);
+//
+//                    mSocket = device.createRfcommSocketToServiceRecord(mUUID);
+//                    mSocket.connect();
+//                    Toast.makeText(BluetoothActivity.this, "连接成功", Toast.LENGTH_SHORT).show();
+//                    app.setmSocket(mSocket);    //连接成功后，将mSocket传到全局Application中
+//                    app.setDevice(device);      //连接成功后，将device传到全局Application中
+//
+//                    // 连接成功后，关闭蓝牙设备的扫描和连接
+//                    try {
+//                        mBluetoothAdapter.cancelDiscovery();
+//                        unregisterReceiver(mReceiver);
+//                    } catch (Exception e) {
+//                        Log.e("Pan", e.toString());
+//                    }
+//                } catch (Exception e) {
+//                    Log.e(TAG, "连接失败", e);
+//                    Toast.makeText(BluetoothActivity.this, "连接失败", Toast.LENGTH_SHORT).show();
+//                    app.setmSocket(null);
+//                    app.setDevice(null);
+//                }
             }
         });
+
+        initAndScan();
     }
 
     @Override
@@ -256,8 +252,12 @@ public class BluetoothActivity extends AppCompatActivity {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if (!mDevices.contains(device)) {
                     mDevices.add(device);
-//                    mArrayAdapter.add(device.getName() + "\n" + device.getAddress());
-                    adapter.add(device.getName() + "\n" + device.getAddress());
+                    String alias = MacConstants.getNameByMacAddress(device.getAddress());
+                    //判断别名
+                    if (alias == null) {
+                        alias = device.getName();
+                    }
+                    adapter.add(alias + "\n" + device.getAddress());
                 } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
                     // 扫描完成
                     Toast.makeText(context, "扫描完成", Toast.LENGTH_SHORT).show();
@@ -280,6 +280,7 @@ public class BluetoothActivity extends AppCompatActivity {
 
             TextView textViewDeviceName = convertView.findViewById(R.id.text_view_device_name);
             TextView textViewMacAddress = convertView.findViewById(R.id.text_view_mac_address);
+            ImageView device_image = convertView.findViewById(R.id.device_image);
 
             String str = getItem(position);
             String[] lines = str.split("\n");
@@ -287,11 +288,38 @@ public class BluetoothActivity extends AppCompatActivity {
             String macAddress = lines[1];
             textViewDeviceName.setText(deviceName);
             textViewMacAddress.setText(macAddress);
-
-
+            if(MacConstants.getNameByMacAddress(macAddress)!=null){
+                device_image.setImageBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.bike_example2));
+                textViewDeviceName.setTextColor(Color.argb(255,2, 136, 209));
+            }
             return convertView;
         }
     }
 
+    /**
+     *
+     */
+    public void initAndScan(){
+        adapter.clear();
+        mDevices.clear();
 
+//                pairedDevices = new ArrayList<>(mBluetoothAdapter.getBondedDevices());
+//                for (BluetoothDevice device : pairedDevices) {
+//                    mDevices.add(device);
+//                    adapter.add("[已配对]" + device.getName() + "\n" + device.getAddress());
+//                }
+
+        try {
+            // 注册广播接收器
+            IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+            filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+            registerReceiver(mReceiver, filter);
+        } catch (Exception e) {
+            Log.e("Pan", e.toString());
+        }
+
+        // 开始扫描蓝牙设备
+        @SuppressLint("MissingPermission") boolean success = mBluetoothAdapter.startDiscovery();
+        Toast.makeText(BluetoothActivity.this, "正在扫描蓝牙设备", Toast.LENGTH_SHORT).show();
+    }
 }

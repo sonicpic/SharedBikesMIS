@@ -14,10 +14,17 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.gson.Gson;
+import com.gxdcnjq.sharedbikesmis.MapApplication;
 import com.gxdcnjq.sharedbikesmis.R;
-import com.gxdcnjq.sharedbikesmis.entity.User;
+import com.gxdcnjq.sharedbikesmis.constant.ApiConstants;
+import com.gxdcnjq.sharedbikesmis.entity.LoginResponse;
+import com.gxdcnjq.sharedbikesmis.entity.UserForLogin;
 import com.gxdcnjq.sharedbikesmis.ui.main2.Main2Activity;
 import com.gxdcnjq.sharedbikesmis.ui.register.RegisterActivity;
+import com.gxdcnjq.sharedbikesmis.utils.OKHttpUtil;
+
+import java.util.HashMap;
 
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -30,9 +37,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     private TextView btn_forget;
     private int clickCount = 0;
     private int currentImageIndex = 1; // 当前显示的图片索引，初始为1
-    private String baseUrl = "http://127.0.0.1:8080";
-    private User user_success = null;
-
+    private MapApplication app;
 
 
     @Override
@@ -50,6 +55,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
         btn_reg.setOnClickListener(this);
         btn_forget.setOnClickListener(this);
 
+        app = (MapApplication) getApplication();
 
 
         //设置全屏和全面屏适配
@@ -68,12 +74,12 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             @Override
             public void onClick(View view) {
                 clickCount++;
-                Log.d("Pan","click");
-                if (clickCount >= 5 && clickCount <10) {
+                Log.d("Pan", "click");
+                if (clickCount >= 5 && clickCount < 10) {
                     Toast.makeText(LoginActivity.this, "别点啦！！！", Toast.LENGTH_SHORT).show();
-                }else if(clickCount >=10 && clickCount <26){
+                } else if (clickCount >= 10 && clickCount < 26) {
 //                    changeImage();
-                }else if(clickCount >=26){
+                } else if (clickCount >= 26) {
 //                    Intent intent = new Intent(LoginActivity.this,EggsActivity.class);
 //                    startActivity(intent);
                 }
@@ -82,44 +88,35 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     }
 
 
-
     @SuppressLint("NonConstantResourceId")
     @Override
     public void onClick(View view) {
         int id = view.getId();//登录按钮
         if (id == R.id.btn_login) {
-            Intent intent = new Intent(this, Main2Activity.class);
-            intent.putExtra("user_json", "null");
-            startActivity(intent);
-            finish();
-//                //TODO：判断用户名和密码
-//                String username = et_username.getText().toString();
-//                String password = et_password.getText().toString();
-//                User user = new User(username, password);
-//                Gson gson = new Gson();
-//                String json = gson.toJson(user);
-//                String args[] = new String[]{"user", "login"};
-//                String res = null;//服务器传回的json字符串
-//                res = OKHttpUtil.postSyncRequest(baseUrl, json, args);
-//                if(res==null){
-//                    Toast.makeText(this, "服务器响应超时", Toast.LENGTH_SHORT).show();
-//                }else{
-//                    Log.d("同步:", res);
-//                    user_success = gson.fromJson(res, User.class);
-//                    if (true) {
-//                        //密码错误
-//                        Toast.makeText(this, "密码错误", Toast.LENGTH_SHORT).show();
-//                    } else if (true) {
-//                        //用户名不存在
-//                        Toast.makeText(this, "用户名不存在", Toast.LENGTH_SHORT).show();
-//                    } else {//登录成功，等待环信登录
-//                        //Toast.makeText(this, "登录成功", Toast.LENGTH_SHORT).show();
-//                        Intent intent1 = new Intent(this, MainActivity.class);
-//                        intent1.putExtra("user_json", res);
-//                        startActivity(intent1);
-//                        finish();
-//                    }
-//                }
+            //TODO：判断用户名和密码
+            String username = et_username.getText().toString();
+            String password = et_password.getText().toString();
+            UserForLogin userForLogin = new UserForLogin(username, password);
+            Gson gson = new Gson();
+            String json = gson.toJson(userForLogin);
+            Log.d("Pan",json);
+            String res = OKHttpUtil.postSyncRequestJson(ApiConstants.BASE_URL_HTTP, new HashMap<>(), json, "user", "login");//服务器传回的json字符串
+            if (res != null) {
+                // 使用 Gson 解析 JSON
+                LoginResponse loginResponse = gson.fromJson(res, LoginResponse.class);
+                if (loginResponse.getCode().equals("200")) {
+                    Toast.makeText(this, "登录成功", Toast.LENGTH_SHORT).show();
+                    String token = loginResponse.getData().getToken();
+                    OKHttpUtil.setToken(token);
+                    Intent intent = new Intent(this, Main2Activity.class);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    Toast.makeText(this, loginResponse.getMsg(), Toast.LENGTH_SHORT).show();
+                }
+            }else{
+                Toast.makeText(this, "服务器连接超时", Toast.LENGTH_SHORT).show();
+            }
             //注册按钮
         } else if (id == R.id.btn_reg) {
             Intent intent2 = new Intent(this, RegisterActivity.class);
