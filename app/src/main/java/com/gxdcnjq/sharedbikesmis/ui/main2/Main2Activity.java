@@ -33,6 +33,7 @@ import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps.AMap;
+import com.amap.api.maps.AMapUtils;
 import com.amap.api.maps.LocationSource;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptor;
@@ -41,6 +42,8 @@ import com.amap.api.maps.model.LatLng;
 import com.amap.api.maps.model.Marker;
 import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.MyLocationStyle;
+import com.amap.api.maps.model.Polygon;
+import com.amap.api.maps.model.PolygonOptions;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.gson.Gson;
@@ -59,6 +62,7 @@ import com.gxdcnjq.sharedbikesmis.utils.OKHttpUtil;
 
 import org.json.JSONArray;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +106,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
     boolean unlock = false;
 
     private MapApplication app;
+    private Polygon fencePolygon;
 
     // 创建一个 Handler 对象
     Handler handler = new Handler();
@@ -215,7 +220,11 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
                     Toast.makeText(Main2Activity.this, "共享单车未连接", Toast.LENGTH_SHORT).show();
                 }else{
                     if (unlock) {
-                        lock(app.getCurrentBikeDevice().getDevice().getAddress(), currentLatitude, currentLongitude);
+                        if(isPointInFence(new LatLng(currentLatitude, currentLongitude))){
+                            Toast.makeText(Main2Activity.this, "禁停区内禁止关锁", Toast.LENGTH_SHORT).show();
+                        }else{
+                            lock(app.getCurrentBikeDevice().getDevice().getAddress(), currentLatitude, currentLongitude);
+                        }
                     } else {
                         unlock(app.getCurrentBikeDevice().getDevice().getAddress(), currentLatitude, currentLongitude);
                     }
@@ -397,6 +406,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         mapView.onCreate(savedInstanceState);
         //初始化地图控制器对象
         aMap = mapView.getMap();
+        setFence();
 
         // 给地图设置标记点点击事件监听器
         aMap.setOnMarkerClickListener(this);
@@ -425,6 +435,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         myLocationStyle.radiusFillColor(Color.argb(100, 33, 150, 243));
         // 设置定位蓝点的Style
         aMap.setMyLocationStyle(myLocationStyle);
+
 
 
         //设置最小缩放等级为16 ，缩放级别范围为[3, 20]
@@ -627,6 +638,7 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
                                         .snippet(macAddress)
                                         .icon(customIcon))
                                 .setClickable(true);
+                        setFence();
 
                     }
                 } catch (Exception e) {
@@ -914,4 +926,77 @@ public class Main2Activity extends AppCompatActivity implements AMapLocationList
         });
         colorAnimator2.start();
     }
+
+    /**
+     * 电子围栏
+     */
+    private void setFence() {
+        // 构造电子围栏区域的坐标点列表
+        List<LatLng> points = new ArrayList<>();
+        points.add(new LatLng(39.951776, 116.344154));
+        points.add(new LatLng(39.952121, 116.346149));
+        points.add(new LatLng(39.95141, 116.346332));
+        points.add(new LatLng(39.951529, 116.347249));
+        points.add(new LatLng(39.950896, 116.34742));
+        points.add(new LatLng(39.950456, 116.344642));
+
+        // 创建多边形选项对象，并设置填充颜色和透明度
+        PolygonOptions options = new PolygonOptions()
+                .addAll(points)
+                .fillColor(Color.parseColor("#50FF0000")) // 设置填充颜色，#80表示透明度50%
+                .strokeWidth(10) // 设置边框宽度
+                .strokeColor(Color.parseColor("#FF0000")); // 设置边框颜色
+
+        // 添加多边形到地图上
+        fencePolygon = aMap.addPolygon(options);
+    }
+
+    private boolean isPointInFence(LatLng point) {
+        // 电子围栏的边界点列表
+        List<LatLng> fencePoints = new ArrayList<>();
+        fencePoints.add(new LatLng(39.951776, 116.344154));
+        fencePoints.add(new LatLng(39.952121, 116.346149));
+        fencePoints.add(new LatLng(39.95141, 116.346332));
+        fencePoints.add(new LatLng(39.951529, 116.347249));
+        fencePoints.add(new LatLng(39.950896, 116.34742));
+        fencePoints.add(new LatLng(39.950456, 116.344642));
+
+        // 判断点是否在多边形内
+        boolean isInside = isPointInPolygon(point, fencePoints);
+
+        return isInside;
+    }
+
+    private boolean isPointInPolygon(LatLng point, List<LatLng> polygon) {
+        int intersectCount = 0;
+        int size = polygon.size();
+
+        for (int i = 0; i < size; i++) {
+            LatLng p1 = polygon.get(i);
+            LatLng p2 = polygon.get((i + 1) % size);
+
+            if (rayCrossesSegment(point, p1, p2)) {
+                intersectCount++;
+            }
+        }
+
+        return intersectCount % 2 == 1;
+    }
+
+    private boolean rayCrossesSegment(LatLng point, LatLng p1, LatLng p2) {
+        double pointLng = point.longitude;
+        double pointLat = point.latitude;
+        double p1Lng = p1.longitude;
+        double p1Lat = p1.latitude;
+        double p2Lng = p2.longitude;
+        double p2Lat = p2.latitude;
+
+        if ((p1Lat < pointLat && p2Lat >= pointLat) || (p2Lat < pointLat && p1Lat >= pointLat)) {
+            return p1Lng + (pointLat - p1Lat) / (p2Lat - p1Lat) * (p2Lng - p1Lng) < pointLng;
+        }
+
+        return false;
+    }
+
+
 }

@@ -44,14 +44,16 @@
 
     <TextView
         android:id="@+id/repair_situation_text"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:text="故障详细情况"
+        android:layout_gravity="left"
         android:layout_marginLeft="6dp"
+        android:gravity="start"
+        android:text="故障详细情况"
         android:textColor="#000000"
         android:textSize="18sp"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/repair_item_image"
         app:layout_constraintTop_toBottomOf="@+id/repair_time_text" />
 
